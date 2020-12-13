@@ -203,6 +203,11 @@ STATIC mp_obj_t pyb_can_make_new(const mp_obj_type_t *type, size_t n_args, size_
         mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("CAN(%d) doesn't exist"), can_idx);
     }
 
+    // check if the CAN is reserved for system use or not
+    if (MICROPY_HW_CAN_IS_RESERVED(can_idx)) {
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("CAN(%d) is reserved"), can_idx);
+    }
+
     pyb_can_obj_t *self;
     if (MP_STATE_PORT(pyb_can_obj_all)[can_idx - 1] == NULL) {
         self = m_new_obj(pyb_can_obj_t);
@@ -432,6 +437,20 @@ STATIC mp_obj_t pyb_can_send(size_t n_args, const mp_obj_t *pos_args, mp_map_t *
 
     HAL_StatusTypeDef status;
     #if MICROPY_HW_ENABLE_FDCAN
+    uint32_t timeout_ms = args[ARG_timeout].u_int;
+    uint32_t start = HAL_GetTick();
+    while (HAL_FDCAN_GetTxFifoFreeLevel(&self->can) == 0) {
+        if (timeout_ms == 0) {
+            mp_raise_OSError(MP_ETIMEDOUT);
+        }
+        // Check for the Timeout
+        if (timeout_ms != HAL_MAX_DELAY) {
+            if (HAL_GetTick() - start >= timeout_ms) {
+                mp_raise_OSError(MP_ETIMEDOUT);
+            }
+        }
+        MICROPY_EVENT_POLL_HOOK
+    }
     status = HAL_FDCAN_AddMessageToTxFifoQ(&self->can, &tx_msg, tx_data);
     #else
     self->can.pTxMsg = &tx_msg;
