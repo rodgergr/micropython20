@@ -42,3 +42,7 @@ user.props
 # Generated rst files
 ######################
 genrst/
+ports/esp32/boards/GENERIC/esp_espnow_old.cx
+.vscode/settings.json
+ports/esp32/.vscode/settings.json
+lib/stm32lib
