@@ -42,12 +42,19 @@
 //  - prioritises efficient memory usage at the expense of additional
 //    memcpy()s (eg. on buffer wrap).
 
+// Reset the buffer pointers discarding any data in the buffer
+static inline void buffer_reset(buffer_t buffer) {
+    assert(buffer);
+
+    buffer->head = buffer->tail = 0;
+}
+
 // Initialise a buffer of the requested size
 // Will allocate an additional 9 bytes for buffer overhead
-buffer_t buffer_init(size_t size) {
+RB_STATIC buffer_t buffer_init(size_t size) {
     assert(size);
 
-    // Allocate one extra byte to ensure threadsafety
+    // Allocate one extra byte to ensure thread safety
     buffer_t buffer = m_malloc0(size + sizeof(buffer_real_t) + 1);
     assert(buffer);
 
@@ -60,8 +67,9 @@ buffer_t buffer_init(size_t size) {
     return buffer;
 }
 
+#ifdef RING_BUFFER_USE
 // Use the provided memory as buffer
-buffer_t buffer_use(uint8_t *buf, size_t size) {
+RB_STATIC buffer_t buffer_use(uint8_t *buf, size_t size) {
     assert(size > sizeof(buffer_real_t) + 16);
 
     buffer_t buffer = (buffer_t)buf;
@@ -75,9 +83,10 @@ buffer_t buffer_use(uint8_t *buf, size_t size) {
 
     return buffer;
 }
+#endif // RING_BUFFER_USE
 
 // Release and free the memory buffer
-void buffer_release(buffer_t buffer) {
+RB_STATIC void buffer_release(buffer_t buffer) {
     assert(buffer);
     buffer->size = buffer->head = buffer->tail = 0;
     if (buffer->free) {
@@ -85,15 +94,8 @@ void buffer_release(buffer_t buffer) {
     }
 }
 
-// Reset the buffer pointers discarding any data in the buffer
-void buffer_reset(buffer_t buffer) {
-    assert(buffer);
-
-    buffer->head = buffer->tail = 0;
-}
-
 // Copy some data to the buffer - reject if buffer is full
-bool buffer_put(buffer_t buffer, const void *data, size_t len) {
+RB_STATIC bool buffer_put(buffer_t buffer, const uint8_t *data, size_t len) {
     assert(buffer && buffer->memory && data);
 
     if (buffer_free(buffer) < len) {
@@ -114,7 +116,7 @@ bool buffer_put(buffer_t buffer, const void *data, size_t len) {
 }
 
 // Copy data from the buffer - return -1 if error else end index
-STATIC int do_buffer_peek(buffer_t buffer, void *data, size_t len) {
+static int do_buffer_peek(buffer_t buffer, uint8_t *data, size_t len) {
     assert(buffer && buffer->memory && data);
 
     if (buffer_used(buffer) < len) {
@@ -135,12 +137,12 @@ STATIC int do_buffer_peek(buffer_t buffer, void *data, size_t len) {
 }
 
 // Peek data from the buffer - return false if buffer is empty
-bool buffer_peek(buffer_t buffer, void *data, size_t len) {
+RB_STATIC bool buffer_peek(buffer_t buffer, uint8_t *data, size_t len) {
     return do_buffer_peek(buffer, data, len) >= 0;
 }
 
 // Copy data from the buffer - return false if buffer is empty
-bool buffer_get(buffer_t buffer, void *data, size_t len) {
+RB_STATIC bool buffer_get(buffer_t buffer, uint8_t *data, size_t len) {
     int end = do_buffer_peek(buffer, data, len);
     if (end < 0) {
         return false;
@@ -149,8 +151,9 @@ bool buffer_get(buffer_t buffer, void *data, size_t len) {
     return true;
 }
 
+#ifdef RING_BUFFER_DEBUG
 // Print the current buffer state
-void buffer_print(char *name, buffer_t buffer) {
+RB_STATIC void buffer_print(char *name, buffer_t buffer) {
     printf("%s: alloc=%3d size=%3d head=%3d, tail=%3d, used=%3d, free=%3d, start=%p\n",
         name,
         (int)buffer->size + sizeof(buffer_real_t),
@@ -158,3 +161,4 @@ void buffer_print(char *name, buffer_t buffer) {
         (int)buffer_used(buffer), (int)buffer_free(buffer), buffer->memory
         );
 }
+#endif

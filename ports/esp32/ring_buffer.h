@@ -24,6 +24,19 @@
  * THE SOFTWARE.
  */
 
+#ifndef RING_BUFFER_H
+#define RING_BUFFER_H
+
+#ifdef RING_BUFFER_INCLUDE_AS_STATIC
+// Use this on the ESP8266 (1M) to reduce the code size (by 88 bytes).
+// This header will #include ring_buffer.c below with all functions
+// declared "static". This is unnecessary on the ESP32.
+#define RB_STATIC static
+#else
+#define RB_STATIC
+#define RING_BUFFER_DEBUG
+#endif
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -32,28 +45,29 @@ typedef struct buffer_real_t buffer_real_t;
 typedef buffer_real_t *buffer_t;
 
 // Initialise the buffer of requested size
-buffer_t buffer_init(size_t size);
+RB_STATIC buffer_t buffer_init(size_t size);
 
+#ifdef RING_BUFFER_USE
 // Use an existing buffer - don't allocate any new memory
-buffer_t buffer_use(uint8_t *buf, size_t size);
+RB_STATIC buffer_t buffer_use(uint8_t *buf, size_t size);
+#endif
 
 // Release the memory buffer - must be "free"ed by owner
-void buffer_release(buffer_t buffer);
-
-// Reset the buffer pointers discarding any data in the buffer
-void buffer_reset(buffer_t buffer);
+RB_STATIC void buffer_release(buffer_t buffer);
 
 // Copy some data to the buffer - reject if buffer is full
-bool buffer_put(buffer_t buffer, const void *data, size_t len);
+RB_STATIC bool buffer_put(buffer_t buffer, const uint8_t *data, size_t len);
 
 // Copy data from the buffer - return -1 if buffer is empty
-bool buffer_get(buffer_t buffer, void *data, size_t len);
+RB_STATIC bool buffer_get(buffer_t buffer, uint8_t *data, size_t len);
 
 // Copy data from the buffer - return -1 if buffer is empty
-bool buffer_peek(buffer_t buffer, void *data, size_t len);
+RB_STATIC bool buffer_peek(buffer_t buffer, uint8_t *data, size_t len);
 
+#ifdef RING_BUFFER_DEBUG
 // Print the buffer stats
-void buffer_print(char *name, buffer_t buffer);
+RB_STATIC void buffer_print(char *name, buffer_t buffer);
+#endif
 
 // A simple ring buffer for memcpy data blocks in and out of buffer.
 // This method needs to maintain one free byte to ensure lock-less thread
@@ -113,3 +127,5 @@ static inline void buffer_flush(const buffer_t buffer) {
 
     buffer->tail = buffer->head;
 }
+
+#endif // RING_BUFFER_H
